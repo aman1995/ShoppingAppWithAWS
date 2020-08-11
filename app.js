@@ -19,6 +19,9 @@ const passport = require('passport');
 
 
 //connect to db
+if(process.env.db)
+mongoose.connect(process.env.db);
+else
 mongoose.connect(config.database);
 const db = mongoose.connection;
 db.on('error', console.error.bind(console, 'connection error:'));
@@ -117,7 +120,7 @@ app.use('/admin/products', adminProducts);
 app.use('/', pages);
 
 //Start the server
-var port = 3000;
+const port = process.env.PORT || 3000; 
 app.listen(port, () => {
   console.log('Sever started on port ' + port);
 })
