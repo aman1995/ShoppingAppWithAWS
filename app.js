@@ -16,6 +16,7 @@ const fileUpload = require('express-fileupload');
 const {Page} = require('./models/pages');
 const {Category} = require('./models/category');
 const passport = require('passport');
+const knox = require('knox');
 
 
 //connect to db
@@ -28,7 +29,6 @@ db.on('error', console.error.bind(console, 'connection error:'));
 db.once('open', function () {
   console.log('Connected to MongoDB');
 });
-
 
 //init app
 const app = express();
@@ -70,24 +70,6 @@ app.use(session({
   //cookie: { secure: true }
 }));
 
-//Validation
-  customValidators: {
-      function  isImage(value, filename) {
-          var extension = (path.extname(filename)).toLowerCase();
-          switch (extension) {
-              case '.jpg':
-                  return '.jpg';
-              case '.jpeg':
-                  return '.jpeg';
-              case  '.png':
-                  return '.png';
-              case '':
-                  return '.jpeg'
-              default:
-                  return false;
-          }
-      }
-  }
 
 //Express messages
 app.use(require('connect-flash')());

@@ -47,13 +47,11 @@ router.get('/add-product', isAdmin, async (req, res) => {
 router.post('/add-product', [
 
     check('title', 'Title is required').not().isEmpty(),
+    check('image', 'Image is required').not().isEmpty(),
     check('desc', 'Description is required').not().isEmpty(),
     check('price', 'Price must have a value').isDecimal()
 ], async (req, res) => {
     
-    const imageFile = typeof req.files.image !== "undefined" ? req.files.image.name : "";
-    //check('image' , 'You must uplod an image').isImage(imageFile);
-
     const title = req.body.title;
     const slug = title;
     const desc = req.body.desc;
@@ -64,7 +62,6 @@ router.post('/add-product', [
     var errors = result.errors;
        
     if (!result.isEmpty()) {
-        console.log(errors);
         const categories = await Category.find({});
         res.render('admin/add_product', {
             errors : errors,
@@ -74,7 +71,18 @@ router.post('/add-product', [
             categories: categories
         });
     }
+    if(null == req.files){
+        const categories = await Category.find({});
+        req.flash('danger' , 'Upload picture');
+            res.render('admin/add_product',{
+                title: title,
+                desc: desc,
+                price: price,
+                categories: categories
+        });
+    }
     else{
+        const imageFile = typeof req.files.image !== "undefined" ? req.files.image.name : "";
         const dupProd = await Product.findOne({slug : slug});
         if(dupProd){
             const categories = await Category.find({});
@@ -142,7 +150,7 @@ router.post('/reorder-pages', async (req, res) => {
 /**
  * Get edit Product  
  */
-router.get('/edit-product/:id', isAdmin,async (req, res) => {
+router.get('/edit-product/:id',isAdmin, async (req, res) => {
 
     var errors;
     if(req.session.errors)
@@ -179,9 +187,6 @@ router.post('/edit-product/:id', [
     check('price', 'Price must have a value').isDecimal()
 ], async (req, res) => {
     
-    const imageFile = typeof req.files.image !== "undefined" ? req.files.image.name : "";
-    //check('image' , 'You must uplod an image').isImage(imageFile);
-
     const title = req.body.title;
     const slug = title;
     const desc = req.body.desc;
@@ -193,10 +198,12 @@ router.post('/edit-product/:id', [
     const result= validationResult(req);
     var errors = result.errors;
 
-    if(!result.isEmpty()){
+    if(!result.isEmpty() || null == req.files){
         req.session.errors = errors;
         res.redirect('/admin/products/edit-product/'+ id);
-    }else{
+    }
+    else{
+        const imageFile = typeof req.files.image !== "undefined" ? req.files.image.name : "";
         const dupProd = await Product.findOne({slug:slug, _id:{'$ne':id}});
         if(dupProd){
             req.flash('danger','Product title exists, choose another');

@@ -32,7 +32,7 @@ router.get('/add-category', isAdmin, (req, res) => {
 /**
  * post add Category 
  */
-router.post('/add-category', isAdmin, [
+router.post('/add-category', [
     check('title', 'Title is required').not().isEmpty()
 ], async (req, res) => {
 
@@ -73,13 +73,8 @@ router.post('/add-category', isAdmin, [
             }
             catch(ex){
                console.log('Something failed in transaction');
-            }
-            
+            }  
         } 
-
-
-        
-        //page.slug = page.slug.replace(/\s+/g/, '-' ).toLowerCase();
     }
    
 
@@ -103,7 +98,7 @@ router.get('/edit-category/:id', isAdmin,async (req, res) => {
 /**
  * post edit Category 
  */
-router.post('/edit-category/:id', isAdmin, [
+router.post('/edit-category/:id', [
     check('title', 'Title is required').not().isEmpty()
 ], async (req, res) => {
 
