@@ -17,9 +17,9 @@ const path = require( 'path' );
 
 
 const s3 = new aws.S3({
-    accessKeyId: 'AKIA6CHWD5VLPB7B4HTR',
-    secretAccessKey: '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',
-    Bucket: 'cmscartgallery2'
+    accessKeyId: process.env.accessKeyId,
+    secretAccessKey: process.env.secretAccessKey,
+    Bucket: process.env.cmsBucket
    });
 
 /**
@@ -72,7 +72,7 @@ const profileImgUpload = multer({
 /**
  * Get all Products
  */
-router.get('/',async (req, res) => {
+router.get('/', isAdmin ,async (req, res) => {
     let count;
     count = await Product.countDocuments();
     const products = await Product.find({});
@@ -85,7 +85,7 @@ router.get('/',async (req, res) => {
 /**
  * Get add Product 
  */
-router.get('/add-product', async (req, res) => {
+router.get('/add-product', isAdmin, async(req, res) => {
 
     var title = "";
     var desc = "";
@@ -196,7 +196,7 @@ router.post('/reorder-pages', async (req, res) => {
 /**
  * Get edit Product  
  */
-router.get('/edit-product/:id', async (req, res) => {
+router.get('/edit-product/:id',isAdmin, async (req, res) => {
 
     var errors;
     if(req.session.errors)
@@ -313,7 +313,7 @@ router.post('/product-gallery/:id', async (req, res) => {
 /**
  * Get Delete image
  */
-router.get('/delete-image/:productId', async (req, res) => {
+router.get('/delete-image/:productId', isAdmin, async (req, res) => {
     
     const product = await Product.findById(req.params.productId);
 
@@ -331,7 +331,7 @@ router.get('/delete-image/:productId', async (req, res) => {
 /**
  * Get Delete product
  */
-router.get('/delete-product/:id', async (req, res) => {
+router.get('/delete-product/:id', isAdmin, async (req, res) => {
     const id = req.params.id;
     const product = await Product.findById(req.params.id);
     const obj = product.galleryImages
@@ -348,14 +348,13 @@ router.get('/delete-product/:id', async (req, res) => {
             Objects : deleteobj
         }
       };
-
-   // await Product.findByIdAndRemove(id);
     
     s3.deleteObjects(params, function(err, data) {
         if (err) console.log(err, err.stack); // an error occurred
         else     console.log(data);           // successful response
       })
 
+    await Product.findByIdAndRemove(id);
 
     req.flash('success', 'Product deleted!');
     res.redirect('/admin/products');
