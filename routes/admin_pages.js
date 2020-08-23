@@ -9,7 +9,7 @@ const isAdmin = auth.isAdmin;
 /**
  * Get Pages Index
  */
-router.get('/', isAdmin,async (req, res) => {
+router.get('/',async (req, res) => {
     const pages = await Page.find({}).sort({sorting:1});
     res.render('admin/pages', {
         pages: pages
@@ -19,7 +19,7 @@ router.get('/', isAdmin,async (req, res) => {
 /**
  * Get add Page 
  */
-router.get('/add-page',isAdmin, (req, res) => {
+router.get('/add-page', (req, res) => {
 
     var title = "";
     var slug = "";

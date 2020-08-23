@@ -52,3 +52,8 @@ table.alignmiddle td{
     background-color: #f2dede;
     border-color: #ebccd1;
 }
+
+#noImage{
+    width: 100px;
+    height: 100px;
+}

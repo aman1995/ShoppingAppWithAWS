@@ -12,11 +12,9 @@ const cart = require('./routes/cart.js');
 const bodyParser = require('body-parser');
 const session = require('express-session');
 const expressValidator = require('express-validator');
-const fileUpload = require('express-fileupload');
 const {Page} = require('./models/pages');
 const {Category} = require('./models/category');
 const passport = require('passport');
-const knox = require('knox');
 
 
 //connect to db
@@ -30,8 +28,15 @@ db.once('open', function () {
   console.log('Connected to MongoDB');
 });
 
+
 //init app
 const app = express();
+
+// parse application/x-www-form-urlencoded
+app.use(bodyParser.urlencoded({ extended: false }))
+// parse application/json
+app.use(bodyParser.json())
+//app.use(express.json())
 
 //view engine setup
 app.set('views', path.join(__dirname, 'views'));
@@ -52,15 +57,6 @@ Page.find({}).sort({sorting:1}).exec(function(err, pages){
 Category.find(function(err, categories){
     app.locals.categories = categories;
 });
-
-//Express fileUplaod middleware
-app.use(fileUpload());
-
-
-// parse application/x-www-form-urlencoded
-app.use(bodyParser.urlencoded({ extended: false }));
-// parse application/json
-app.use(bodyParser.json());
 
 //session middleware
 app.use(session({

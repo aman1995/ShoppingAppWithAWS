@@ -2,18 +2,77 @@ const express = require('express');
 const router = express.Router();
 const { Product } = require('../models/product');
 const { Category } = require('../models/category');
-const {check, validationResult } = require('express-validator');
+const {body, validationResult } = require('express-validator');
 const fs = require('fs-extra');
 const mkdirp = require('mkdirp');
 const resizeImg = require('resize-img');
 const auth = require('../config/auth');
 const isAdmin = auth.isAdmin;
+const aws = require( 'aws-sdk' );
+const multerS3 = require( 'multer-s3' );
+const multer = require('multer');
+const path = require( 'path' );
+
+
+
+
+const s3 = new aws.S3({
+    accessKeyId: 'AKIA6CHWD5VLPB7B4HTR',
+    secretAccessKey: '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',
+    Bucket: 'cmscartgallery2'
+   });
+
+/**
+ * Single Upload
+ */
+const profileImgUpload = multer({
+    storage: multerS3({
+     s3: s3,
+     bucket: 'cmscartgallery2',
+     acl: 'public-read',
+     metadata: function (req, file, cb) {
+        cb(null, {fieldName: file.fieldname});
+      },
+     key: function (req, file, cb) {
+      cb(null, path.basename( file.originalname, path.extname( file.originalname ) ) + '-' + Date.now() + path.extname( file.originalname ) )
+     }
+    }),
+    limits:{ fileSize: 2000000 }, // In bytes: 2000000 bytes = 2 MB
+    fileFilter: function( req, file, cb ){
+     checkFileType( file, cb );
+    }
+   });
+   /**
+    * Check File Type
+    * @param file
+    * @param cb
+    * @return {*}
+    */
+   function checkFileType( file, cb ){
+    // Allowed ext
+    const filetypes = /jpeg|jpg|png|gif/;
+    // Check ext
+    const extname = filetypes.test( path.extname( file.originalname ).toLowerCase());
+    // Check mime
+    const mimetype = filetypes.test( file.mimetype );if( mimetype && extname ){
+     return cb( null, true );
+    } else {
+     cb( 'Error: Images Only!' );
+    }
+   }
+
+
+   var multipleUpload = profileImgUpload.array('file', 4);
+   var singleUpload = profileImgUpload.single('image');
+
+
+
 
 
 /**
- * Get Pages Index
+ * Get all Products
  */
-router.get('/', isAdmin,async (req, res) => {
+router.get('/',async (req, res) => {
     let count;
     count = await Product.countDocuments();
     const products = await Product.find({});
@@ -26,7 +85,7 @@ router.get('/', isAdmin,async (req, res) => {
 /**
  * Get add Product 
  */
-router.get('/add-product', isAdmin, async (req, res) => {
+router.get('/add-product', async (req, res) => {
 
     var title = "";
     var desc = "";
@@ -44,12 +103,10 @@ router.get('/add-product', isAdmin, async (req, res) => {
 /**
  * post add Product 
  */
-router.post('/add-product', [
-
-    check('title', 'Title is required').not().isEmpty(),
-    check('image', 'Image is required').not().isEmpty(),
-    check('desc', 'Description is required').not().isEmpty(),
-    check('price', 'Price must have a value').isDecimal()
+router.post('/add-product', singleUpload, [
+    body('title', 'Title is required').not().isEmpty(),
+    body('desc', 'Description is required').not().isEmpty(),
+    body('price', 'Price must have a value').isDecimal()
 ], async (req, res) => {
     
     const title = req.body.title;
@@ -57,11 +114,10 @@ router.post('/add-product', [
     const desc = req.body.desc;
     const price = req.body.price;
     const category = req.body.category;
-
     const result= validationResult(req);
     var errors = result.errors;
-       
-    if (!result.isEmpty()) {
+    
+    if (!result.isEmpty()) { 
         const categories = await Category.find({});
         res.render('admin/add_product', {
             errors : errors,
@@ -71,7 +127,7 @@ router.post('/add-product', [
             categories: categories
         });
     }
-    if(null == req.files){
+    else if(null == req.file){
         const categories = await Category.find({});
         req.flash('danger' , 'Upload picture');
             res.render('admin/add_product',{
@@ -82,7 +138,6 @@ router.post('/add-product', [
         });
     }
     else{
-        const imageFile = typeof req.files.image !== "undefined" ? req.files.image.name : "";
         const dupProd = await Product.findOne({slug : slug});
         if(dupProd){
             const categories = await Category.find({});
@@ -96,30 +151,21 @@ router.post('/add-product', [
         }
         else{
             try{
-                const product = new Product({
-                    title: title,
-                    slug: slug,
-                    desc: desc,
-                    price: parseFloat(price).toFixed(2),
-                    category: category,
-                    image: imageFile
-                });
-                await product.save();
+                    const product = new Product({
+                        title: title,
+                        slug: slug,
+                        desc: desc,
+                        price: parseFloat(price).toFixed(2),
+                        category: category,
+                        imageName : req.file.key,
+                        imageLocation : req.file.location
 
-                await mkdirp('public/product_images/'+product._id);
+                    });
+                    await product.save();
 
-                await mkdirp('public/product_images/'+product._id + '/gallery');
 
-                await mkdirp('public/product_images/'+product._id + '/gallery/thumbs')
-
-                if(imageFile != ''){
-                    const productImage = req.files.image;
-                    const path = 'public/product_images/' + product._id + '/' + imageFile;
-                    await productImage.mv(path);
-                }
-
-                req.flash('success', 'Product added!');
-                res.redirect('/admin/products');
+                 req.flash('success', 'Product added!');
+                 res.redirect('/admin/products');
             }
             catch(ex){
                console.log(ex);
@@ -150,7 +196,7 @@ router.post('/reorder-pages', async (req, res) => {
 /**
  * Get edit Product  
  */
-router.get('/edit-product/:id',isAdmin, async (req, res) => {
+router.get('/edit-product/:id', async (req, res) => {
 
     var errors;
     if(req.session.errors)
@@ -159,10 +205,7 @@ router.get('/edit-product/:id',isAdmin, async (req, res) => {
 
     const categories = await Category.find({});
     const product = await Product.findById(req.params.id);
-    const galleryDir = 'public/product_images/' + product._id + '/gallery'; 
-    let galleryImages = null;
-    const files =  await fs.readdir(galleryDir);
-    galleryImages =  files;
+    
     res.render('admin/edit_product', {
         errors: errors,
         title: product.title,
@@ -170,8 +213,8 @@ router.get('/edit-product/:id',isAdmin, async (req, res) => {
         price: parseFloat(product.price).toFixed(2),
         category: product.category,
         categories: categories,
-        image: product.image,
-        galleryImages: galleryImages,
+        image: product.imageLocation,
+        galleryImages: product.galleryImages,
         id: product._id
     });
 
@@ -180,11 +223,11 @@ router.get('/edit-product/:id',isAdmin, async (req, res) => {
 /**
  * post edit Product 
  */
-router.post('/edit-product/:id', [
+router.post('/edit-product/:id', singleUpload, [
 
-    check('title', 'Title is required').not().isEmpty(),
-    check('desc', 'Description is required').not().isEmpty(),
-    check('price', 'Price must have a value').isDecimal()
+    body('title', 'Title is required').not().isEmpty(),
+    body('desc', 'Description is required').not().isEmpty(),
+    body('price', 'Price must have a value').isDecimal()
 ], async (req, res) => {
     
     const title = req.body.title;
@@ -198,36 +241,28 @@ router.post('/edit-product/:id', [
     const result= validationResult(req);
     var errors = result.errors;
 
-    if(!result.isEmpty() || null == req.files){
+    if(!result.isEmpty() ){
         req.session.errors = errors;
         res.redirect('/admin/products/edit-product/'+ id);
     }
     else{
-        const imageFile = typeof req.files.image !== "undefined" ? req.files.image.name : "";
         const dupProd = await Product.findOne({slug:slug, _id:{'$ne':id}});
         if(dupProd){
             req.flash('danger','Product title exists, choose another');
             res.redirect('/admin/products/edit-product/'+ id);
         }else{
+
             const product = await Product.findById(id);
             product.title = title;
             product.slug = slug;
             product.desc = desc;
             product.price = parseFloat(price).toFixed(2);
             product.category = category;
-            if(product.imageFile != ''){
-                product.image = imageFile;
+            if(req.file){
+                product.imageName = req.file.key;
+                product.imageLocation = req.file.location;
             }
             await product.save();
-            if(imageFile != ''){
-                if(pimage != ''){
-                    await fs.remove('public/product_images/' + id + '/' + pimage);
-                }
-                const productImage = req.files.image;
-                const path = 'public/product_images/' + id + '/' + imageFile;
-
-                await productImage.mv(path);
-            }
             req.flash('success', 'Product edited!');
             res.redirect('/admin/products/edit-product/'+ id);
         }
@@ -235,48 +270,93 @@ router.post('/edit-product/:id', [
   
 });
 
-
-/**
- * Post Product gallery
- */
 router.post('/product-gallery/:id', async (req, res) => {
-    const productImage = req.files.file;
-    const id = req.params.id;
-    const path = 'public/product_images/' + id + '/gallery/' + req.files.file.name;
-    const thumbsPath = 'public/product_images/' + id + '/gallery/thumbs/' + req.files.file.name;
+    
 
-    await productImage.mv(path);
-    const image = await resizeImg(fs.readFileSync(path), {width:100,height:100});
-    await fs.writeFileSync(thumbsPath, image);
+    multipleUpload(req, res, (error) => {
+        if (error) {
+            console.log('errors', error);
+            res.status(500).json({
+                status: 'fail',
+                error: error
+            });
+        } else {
+            // If File not found
+            if (req.files === undefined) {
+                console.log('uploadProductsImages Error: No File Selected!');
+                res.status(500).json({
+                    status: 'fail',
+                    message: 'Error: No File Selected'
+                });
+            } else {
+                // If Success 
+                let fileArray = req.files;
+                let fileLocation;
+        
+                fileLocation = fileArray[0].location;
+                Product.findById(req.params.id)
+                .then(async (product)=>{
+                    product.galleryImages.push(fileLocation);
+                    product.markModified('galleryImages');
+                    return await product.save();
+                }).then((product)=>{
+                    res.sendStatus(201);
+                })
+            }
+        }
+   })
 
-    res.sendStatus(200);
-})
+
+});
 
 
 /**
  * Get Delete image
  */
-router.get('/delete-image/:image', isAdmin, async (req, res) => {
-    const originalImage = 'public/product_images/' + req.query.id + '/gallery/' + req.params.image;
-    const thumbImage = 'public/product_images/' + req.query.id + '/gallery/thumbs/' + req.params.image;
+router.get('/delete-image/:productId', async (req, res) => {
+    
+    const product = await Product.findById(req.params.productId);
 
-    await fs.remove(originalImage);
-    await fs.remove(thumbImage);
+    const index = product.galleryImages.indexOf(req.query.imageId);
+    product.galleryImages.splice(index, 1);
+    product.markModified('galleryImages');
+    
+    await product.save();
+
     req.flash('success', 'Image deleted!');
-    res.redirect('/admin/products/edit-product/'+ req.query.id);
+    res.redirect('/admin/products/edit-product/'+ req.params.productId);
 })
 
 
 /**
  * Get Delete product
  */
-router.get('/delete-product/:id', isAdmin, async (req, res) => {
+router.get('/delete-product/:id', async (req, res) => {
     const id = req.params.id;
-    const path =  'public/product_images/' + id ;
-
-    await fs.remove(path);
-    await Product.findByIdAndRemove(id);
+    const product = await Product.findById(req.params.id);
+    const obj = product.galleryImages
     
+    let deleteobj = [];
+    obj.forEach((element) => {
+        deleteobj.push({
+            Key : element
+        })
+    });
+    var params = {
+        Bucket: 'cmscartgallery2', 
+        Delete: {
+            Objects : deleteobj
+        }
+      };
+
+   // await Product.findByIdAndRemove(id);
+    
+    s3.deleteObjects(params, function(err, data) {
+        if (err) console.log(err, err.stack); // an error occurred
+        else     console.log(data);           // successful response
+      })
+
+
     req.flash('success', 'Product deleted!');
     res.redirect('/admin/products');
 })

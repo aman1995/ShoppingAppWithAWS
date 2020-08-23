@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+
 const Product =  mongoose.model('Product', new mongoose.Schema({
 
     title : {
@@ -24,8 +25,15 @@ const Product =  mongoose.model('Product', new mongoose.Schema({
     slug : {
         type : String
     },
-    image : {
+    imageName : {
         type : String
+    },
+    imageLocation : {
+        type : String
+    }, 
+    galleryImages : {
+        default: [],
+        type : Object,
     }
 
 }));

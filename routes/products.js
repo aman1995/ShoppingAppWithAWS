@@ -41,13 +41,11 @@ router.get('/:category/:product', async (req,res) => {
     const loggedIn = (req.isAuthenticated()) ? true : false;
    
     const product = await Product.findOne({slug : req.params.product});
-    const galleryDir = 'public/product_images/' + product._id +'/gallery';
-    
-    galleryImages = await fs.readdir(galleryDir);
+
     res.render('product',{  
         title: product.title,
         p: product,
-        galleryImages: galleryImages,
+        galleryImages: product.galleryImages,
         loggedIn: loggedIn
     })
    
